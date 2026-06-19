@@ -1,20 +1,3 @@
-"""
-reduction.py
-============
-Riduzione polinomiale  Sudoku  →  GraphColoring
-
-Costruzione:
-  V  = { (r,c) | 0 ≤ r,c ≤ 8 }            81 nodi
-  E  = { {u,v} | stessa riga ∨ stessa col ∨ stesso blocco 3×3 }
-  k  = 9  (colori = cifre 1-9)
-  Pre-colorazione: celle non vuote → colore fisso
-
-Una 9-colorazione di G che rispetta la pre-colorazione
-corrisponde biunivocamente a una soluzione del Sudoku.
-
-Complessità costruzione: O(n²) nodi, O(n³) archi  (n=9)
-"""
-
 from typing import List, Tuple, Set, Dict
 
 
@@ -94,7 +77,6 @@ def coloring_to_grid(colors: Dict[int, int]) -> List[List[int]]:
     return grid
 
 
-# Precalcolo del grafo (fatto una sola volta al caricamento del modulo)
 ADJ, EDGES = build_graph()
 
 

@@ -1,31 +1,3 @@
-"""
-solver.py
-=========
-Due algoritmi per GraphColoring applicato a Sudoku:
-
-1. NAIVE  – backtracking riga-per-riga, prima cifra valida.
-            Corrisponde a visitare l'albero di backtracking nell'ordine
-            lessicografico, senza sfruttare la struttura del problema.
-
-2. DSATUR – Degree of SATURation (Brélaz, 1979) + Forward Checking.
-            Ad ogni passo colora il nodo con più colori distinti già
-            usati dai vicini (massima saturazione); a parità, il nodo
-            di grado più alto.  Dopo ogni assegnazione si propagano
-            i vincoli (forward checking): se un nodo rimasto vuoto
-            perde tutti i colori disponibili si fa backtrack subito.
-
-            Corrisponde alle sezioni 2.7-2.8 della dispensa:
-            "scegliere bene l'albero di backtracking" e
-            "sfruttare le caratteristiche del problema".
-
-Entrambi restituiscono:
-  - solution    : griglia 9×9 soluzione (o None)
-  - nodes       : nodi dell'albero esplorati
-  - time_ms     : millisecondi
-  - steps       : lista di (r, c, val)  val=0 → backtrack
-  - success     : bool
-"""
-
 import time
 from typing import List, Dict, Optional, Tuple
 from reduction import ADJ, N, node_id, node_rc, grid_to_precoloring, coloring_to_grid
@@ -34,10 +6,7 @@ from reduction import ADJ, N, node_id, node_rc, grid_to_precoloring, coloring_to
 MAX_STEPS = 8_000   # limite step per l'animazione (non per il conteggio nodi)
 MAX_NODES = 2_000_000  # guard per puzzle irrisolvibili / buggy input
 
-
-# ---------------------------------------------------------------------------
-# Helper comuni
-# ---------------------------------------------------------------------------
+# Helper 
 
 def available_colors(uid: int, colors: Dict[int, int]) -> List[int]:
     """Cifre 1-9 non usate dai vicini colorati di uid."""
@@ -49,11 +18,7 @@ def saturation(uid: int, colors: Dict[int, int]) -> int:
     """Numero di colori distinti usati dai vicini di uid."""
     return len({colors[nb] for nb in ADJ[uid] if nb in colors})
 
-
-# ---------------------------------------------------------------------------
 # 1. DSATUR + Forward Checking
-# ---------------------------------------------------------------------------
-
 def solve_dsatur(grid: List[List[int]]) -> dict:
     start = time.perf_counter()
     colors = grid_to_precoloring(grid)
@@ -88,9 +53,9 @@ def solve_dsatur(grid: List[List[int]]) -> dict:
             r, c = node_rc(uid)
             _record(r, c, color)
 
-            # Forward checking: nessun nodo deve rimanere senza colori
             remaining = uncolored_set - {uid}
-            ok = all(available_colors(nb, colors) for nb in remaining if nb in ADJ[uid])
+            affected = ADJ[uid] & remaining
+            ok = all(available_colors(nb, colors) for nb in affected)
 
             if ok and backtrack(remaining, colors):
                 return True
@@ -113,10 +78,7 @@ def solve_dsatur(grid: List[List[int]]) -> dict:
         "steps_overflow": overflow[0],
     }
 
-
-# ---------------------------------------------------------------------------
 # 2. Backtracking Naive (riga-per-riga)
-# ---------------------------------------------------------------------------
 
 def solve_naive(grid: List[List[int]]) -> dict:
     start = time.perf_counter()

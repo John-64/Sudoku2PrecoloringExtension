@@ -1,29 +1,8 @@
-"""
-generator.py
-============
-Genera puzzle Sudoku a difficoltà variabile.
-
-Strategia:
-  1. Parte da una griglia risolta di base.
-  2. Applica permutazioni valide (shuffle righe dentro banda,
-     shuffle colonne dentro banda, permutazione cifre)
-     per ottenere una griglia risolta casuale.
-  3. Rimuove celle in modo simmetrico (simmetria a 180°)
-     fino alla difficoltà richiesta.
-
-Celle rimosse (approssimativo):
-  easy   → 33-36  (puzzle "aperti")
-  medium → 45-48
-  hard   → 52-56  (richiede tecniche avanzate)
-"""
-
 import random
 from typing import List, Optional
 
-
 N = 9
 
-# Griglia base risolta — valida e verificata
 BASE = [
     [5, 3, 4, 6, 7, 8, 9, 1, 2],
     [6, 7, 2, 1, 9, 5, 3, 4, 8],
@@ -41,6 +20,9 @@ REMOVE_COUNTS = {
     "medium": 46,
     "hard":   54,
 }
+
+# Difficoltà gestite da generate(); "expert" è un caso a parte (get_expert()).
+DIFFICULTIES = tuple(REMOVE_COUNTS.keys())
 
 
 def _copy(grid: List[List[int]]) -> List[List[int]]:
@@ -88,20 +70,32 @@ def generate(difficulty: str = "medium", seed: Optional[int] = None) -> List[Lis
             new_grid.append(grid[r][:])
     grid = new_grid
 
-    # --- Rimuovi celle con simmetria a 180° ---
+    # --- Rimuovi celle con simmetria di punto (180°) ---
     puzzle = _copy(grid)
     n_remove = REMOVE_COUNTS.get(difficulty, REMOVE_COUNTS["medium"])
 
-    cells = [(r, c) for r in range(N) for c in range(N // 2)]  # metà griglia
-    rng.shuffle(cells)
+    total_cells = N * N          # 81
+    center = total_cells // 2    # 40 -> cella (4,4)
+
+    half_indices = list(range(center))
+    rng.shuffle(half_indices)
 
     removed = 0
-    for r, c in cells:
-        if removed >= n_remove // 2:
+    for idx in half_indices:
+        if removed >= n_remove:
             break
-        puzzle[r][c] = 0
-        puzzle[N - 1 - r][N - 1 - c] = 0
+        r1, c1 = divmod(idx, N)
+        r2, c2 = divmod(total_cells - 1 - idx, N)
+        puzzle[r1][c1] = 0
+        puzzle[r2][c2] = 0
         removed += 2
+
+    # Se il target è dispari, tocca anche la cella centrale (caso limite,
+    # non usato dai preset attuali ma corretto per qualunque n_remove).
+    if removed < n_remove:
+        cr, cc = divmod(center, N)
+        puzzle[cr][cc] = 0
+        removed += 1
 
     return puzzle
 
