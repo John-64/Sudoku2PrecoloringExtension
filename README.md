@@ -53,10 +53,6 @@ Same worst-case complexity (the problem is still NP-hard), but DSATUR explores a
     <img src="media/solved.png" alt="Reduction completed" width="80%">
 </div>
 
-## Info and credits
-This project was created for the course "Algoritmi Avanzati" at the Università degli Studi di Salerno. 
-- [Complexity and Completeness of Finding Another Solution and Its Application to Puzzles - Takayuki Yato](https://www.cs.umd.edu/users/gasarch/BLOGPAPERS/msasp.pdf)
-
 ## Contribution
 If you'd like to contribute, please follow these steps:
 - Fork the repository;
