@@ -128,6 +128,11 @@ h1 em {
   margin-bottom: var(--space-3);
 }
 
+.panel-head button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
 .panel-title {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -229,13 +234,6 @@ h1 em {
 .node.related { stroke: var(--accent); stroke-width: 1.4; }
 
 /* Controls */
-.controls {
-  margin-top: var(--space-5);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-4);
-}
-
 .control-row {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -247,6 +245,16 @@ h1 em {
   gap: var(--space-3);
 }
 
+/* nested inside a .panel that already has its own border/background */
+.control-row.inline {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 0 0 var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
 .control-row .label {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -256,7 +264,7 @@ h1 em {
   margin-right: auto;
 }
 
-select, .text-input {
+select {
   font-family: var(--font-ui);
   font-size: 13.5px;
   color: var(--ink);
@@ -265,8 +273,6 @@ select, .text-input {
   border-radius: var(--radius);
   padding: 7px 10px;
 }
-
-.text-input { width: 84px; font-family: var(--font-mono); }
 
 button {
   font-family: var(--font-ui);
@@ -297,19 +303,18 @@ button:disabled {
 }
 
 /* Stats */
+.stats-panel { margin-top: var(--space-5); }
+.stats-panel .panel-head { align-items: center; }
+
 .stats {
-  margin-top: var(--space-5);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: var(--space-4);
-  min-height: 64px;
+  min-height: 32px;
 }
 
 .stats-empty {
   color: var(--ink-faint);
   font-size: 13px;
   font-family: var(--font-mono);
+  text-align: justify;
 }
 
 table.stat-table {
@@ -383,7 +388,7 @@ footer a { color: var(--ink-soft); }
 
 /* Responsive */
 @media (max-width: 760px) {
-  .duo, .controls { grid-template-columns: 1fr; }
+  .duo { grid-template-columns: 1fr; }
   .shell { padding: var(--space-5) var(--space-4) var(--space-7); }
 }
 

@@ -9,20 +9,27 @@
     grid: document.getElementById("sudoku-grid"),
     svg: document.getElementById("graph-svg"),
     difficulty: document.getElementById("difficulty"),
-    seed: document.getElementById("seed"),
     algorithm: document.getElementById("algorithm"),
     btnGenerate: document.getElementById("btn-generate"),
-    btnClear: document.getElementById("btn-clear"),
+    btnClearGrid: document.getElementById("btn-clear-grid"),
+    btnClearResults: document.getElementById("btn-clear-results"),
     btnSolve: document.getElementById("btn-solve"),
     stats: document.getElementById("stats"),
     banner: document.getElementById("error-banner"),
   };
 
-  const DIFFICULTY_LABELS = { easy: "Facile", medium: "Media", hard: "Difficile", expert: "Esperto" };
+  const DIFFICULTY_LABELS = {
+    easy: "Easy",
+    medium: "Medium",
+    hard: "Hard",
+    expert: "Expert",
+  };
+
   const MAX_HISTORY = 25;
 
   const state = {
     grid: emptyGrid(),
+    baseGrid: emptyGrid(),
     given: emptyGrid(),
     adjacency: new Map(),
     selected: null,
@@ -39,9 +46,13 @@
     return Array.from({ length: N }, () => Array(N).fill(0));
   }
 
-  function idx(r, c) { return r * N + c; }
+  function cloneGrid(g) {
+    return g.map((row) => row.slice());
+  }
 
-  // Init
+  function idx(r, c) {
+    return r * N + c;
+  }
 
   function buildSudokuDOM() {
     const frag = document.createDocumentFragment();
@@ -55,7 +66,7 @@
         input.autocomplete = "off";
         input.dataset.r = r;
         input.dataset.c = c;
-        input.setAttribute("aria-label", `Riga ${r + 1}, colonna ${c + 1}`);
+        input.setAttribute("aria-label", `Row ${r + 1}, column ${c + 1}`);
 
         input.addEventListener("focus", () => selectCell(r, c));
         input.addEventListener("click", () => selectCell(r, c));
@@ -72,7 +83,6 @@
   function buildGraphDOM() {
     const svg = els.svg;
 
-    // block guide lines, mirroring the sudoku's thick 3x3 borders
     const guides = document.createElementNS(svg.namespaceURI, "g");
     [30, 60].forEach((pos) => {
       guides.appendChild(line(pos, 0, pos, 90, "guide strong"));
@@ -85,6 +95,7 @@
     svg.appendChild(state.edgesGroup);
 
     const nodesGroup = document.createElementNS(svg.namespaceURI, "g");
+
     for (let r = 0; r < N; r++) {
       state.nodeEls.push([]);
       for (let c = 0; c < N; c++) {
@@ -100,6 +111,7 @@
         nodesGroup.appendChild(circle);
       }
     }
+
     svg.appendChild(nodesGroup);
   }
 
@@ -109,8 +121,10 @@
 
   function line(x1, y1, x2, y2, cls) {
     const el = document.createElementNS(els.svg.namespaceURI, "line");
-    el.setAttribute("x1", x1); el.setAttribute("y1", y1);
-    el.setAttribute("x2", x2); el.setAttribute("y2", y2);
+    el.setAttribute("x1", x1);
+    el.setAttribute("y1", y1);
+    el.setAttribute("x2", x2);
+    el.setAttribute("y2", y2);
     el.setAttribute("class", cls);
     return el;
   }
@@ -120,17 +134,16 @@
       const res = await fetch("/graph");
       if (!res.ok) throw new Error("graph fetch failed");
       const data = await res.json();
+
       state.adjacency = new Map(data.nodes.map((n) => [n.id, new Set()]));
       data.edges.forEach(({ u, v }) => {
         state.adjacency.get(u).add(v);
         state.adjacency.get(v).add(u);
       });
-    } catch (err) {
-      showError("Impossibile caricare la struttura del grafo. Riavvia il server e ricarica la pagina.");
+    } catch {
+      showError("Unable to load graph structure. Restart the server and reload the page.");
     }
   }
-
-  // Render
 
   function renderCell(r, c) {
     const v = state.grid[r][c];
@@ -151,14 +164,15 @@
   }
 
   function renderAll() {
-    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) renderCell(r, c);
+    for (let r = 0; r < N; r++) {
+      for (let c = 0; c < N; c++) renderCell(r, c);
+    }
   }
-
-  // Selection
 
   function selectCell(r, c) {
     if (state.selected && state.selected.r === r && state.selected.c === c) return;
     clearSelection();
+
     state.selected = { r, c };
 
     const u = idx(r, c);
@@ -168,12 +182,16 @@
     state.nodeEls[r][c].classList.add("selected");
 
     state.edgesGroup.innerHTML = "";
+
     const [x1, y1] = coordsFor(r, c);
 
     neighbours.forEach((nIdx) => {
-      const nr = Math.floor(nIdx / N), nc = nIdx % N;
+      const nr = Math.floor(nIdx / N);
+      const nc = nIdx % N;
+
       state.inputEls[nr][nc].classList.add("related");
       state.nodeEls[nr][nc].classList.add("related");
+
       const [x2, y2] = coordsFor(nr, nc);
       state.edgesGroup.appendChild(line(x1, y1, x2, y2, "edge lit"));
     });
@@ -181,9 +199,11 @@
 
   function clearSelection() {
     if (!state.selected) return;
+
     document.querySelectorAll(".selected, .related").forEach((el) => {
       el.classList.remove("selected", "related");
     });
+
     state.edgesGroup.innerHTML = "";
     state.selected = null;
   }
@@ -192,16 +212,21 @@
     if (!e.target.closest(".panel")) clearSelection();
   });
 
-  // Editing
-
   function onCellInput(e) {
     const input = e.target;
-    const r = Number(input.dataset.r), c = Number(input.dataset.c);
+    const r = Number(input.dataset.r);
+    const c = Number(input.dataset.c);
+
     const digits = input.value.replace(/[^1-9]/g, "").slice(-1);
-    state.grid[r][c] = digits === "" ? 0 : Number(digits);
-    state.puzzleLabel = "personalizzato";
+    const value = digits === "" ? 0 : Number(digits);
+
+    state.grid[r][c] = value;
+    state.baseGrid[r][c] = value;
+    state.puzzleLabel = "custom";
+
     renderCell(r, c);
     input.value = digits;
+
     if (state.selected && state.selected.r === r && state.selected.c === c) {
       selectCellRefresh();
     }
@@ -214,10 +239,16 @@
   }
 
   function onCellKeydown(e) {
-    const r = Number(e.target.dataset.r), c = Number(e.target.dataset.c);
+    const r = Number(e.target.dataset.r);
+    const c = Number(e.target.dataset.c);
+
     const moves = {
-      ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1],
+      ArrowUp: [-1, 0],
+      ArrowDown: [1, 0],
+      ArrowLeft: [0, -1],
+      ArrowRight: [0, 1],
     };
+
     if (moves[e.key]) {
       e.preventDefault();
       const [dr, dc] = moves[e.key];
@@ -227,11 +258,10 @@
     }
   }
 
-  // Actions
-
   function setBusy(busy) {
     state.busy = busy;
-    [els.btnGenerate, els.btnClear, els.btnSolve].forEach((b) => (b.disabled = busy));
+    [els.btnGenerate, els.btnClearGrid, els.btnClearResults, els.btnSolve]
+      .forEach((b) => (b.disabled = busy));
   }
 
   function showError(msg) {
@@ -245,22 +275,26 @@
 
   async function generatePuzzle() {
     if (state.busy) return;
+
     hideError();
     setBusy(true);
+
     try {
       const params = new URLSearchParams({ difficulty: els.difficulty.value });
-      const seed = els.seed.value.trim();
-      if (seed !== "") params.set("seed", seed);
-
       const res = await fetch(`/generate?${params.toString()}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Generazione fallita");
+
+      if (!res.ok) throw new Error(data.error || "Generation failed");
 
       clearSelection();
       state.grid = data.grid;
+      state.baseGrid = cloneGrid(data.grid);
       state.given = data.grid.map((row) => row.map((v) => (v !== 0 ? 1 : 0)));
-      state.puzzleLabel = DIFFICULTY_LABELS[data.difficulty] || data.difficulty;
-      if (data.seed !== null && data.seed !== undefined) state.puzzleLabel += ` · seed ${data.seed}`;
+
+      state.puzzleLabel =
+        (DIFFICULTY_LABELS[data.difficulty] || data.difficulty) +
+        (data.seed != null ? ` · seed ${data.seed}` : "");
+
       renderAll();
     } catch (err) {
       showError(err.message);
@@ -271,21 +305,36 @@
 
   function clearPuzzle() {
     if (state.busy) return;
+
     hideError();
     clearSelection();
+
     state.grid = emptyGrid();
+    state.baseGrid = emptyGrid();
     state.given = emptyGrid();
     state.puzzleLabel = "—";
+
     renderAll();
+  }
+
+  function clearResults() {
+    if (state.busy) return;
+
+    hideError();
     resetHistory();
   }
 
   async function solvePuzzle() {
     if (state.busy) return;
+
     hideError();
     setBusy(true);
+
     const algorithm = els.algorithm.value;
-    const snapshot = state.grid.map((row) => row.slice());
+
+    clearSelection();
+    state.grid = cloneGrid(state.baseGrid);
+    renderAll();
 
     try {
       const res = await fetch("/solve", {
@@ -293,17 +342,16 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ grid: state.grid, algorithm }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Risoluzione fallita");
 
-      clearSelection();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Solving failed");
+
       await animateSteps(data.primary.steps || []);
 
-      if (data.primary.success) {
-        state.grid = data.primary.solution;
-      } else {
-        state.grid = snapshot;
-      }
+      state.grid = data.primary.success
+        ? data.primary.solution
+        : cloneGrid(state.baseGrid);
+
       renderAll();
       addRun(data.primary, data.secondary);
     } catch (err) {
@@ -316,23 +364,32 @@
   function animateSteps(steps) {
     return new Promise((resolve) => {
       if (steps.length === 0 || reducedMotion) {
-        steps.forEach(([r, c, v]) => { state.grid[r][c] = v; renderCell(r, c); });
+        steps.forEach(([r, c, v]) => {
+          state.grid[r][c] = v;
+          renderCell(r, c);
+        });
         resolve();
         return;
       }
+
       const maxFrames = 420;
       const batch = Math.max(1, Math.ceil(steps.length / maxFrames));
-      const frameDelay = 16;
       let i = 0;
+
       const tick = () => {
         for (let k = 0; k < batch && i < steps.length; k++, i++) {
           const [r, c, v] = steps[i];
           state.grid[r][c] = v;
           renderCell(r, c);
         }
-        if (i < steps.length) requestAnimationFrame(() => setTimeout(tick, frameDelay));
-        else resolve();
+
+        if (i < steps.length) {
+          requestAnimationFrame(() => setTimeout(tick, 16));
+        } else {
+          resolve();
+        }
       };
+
       tick();
     });
   }
@@ -346,57 +403,73 @@
   function computeDelta(primary, secondary) {
     if (primary.nodes > 0 && secondary.nodes > 0) {
       const ratio = secondary.nodes / primary.nodes;
-      return `DSATUR esplora ${ratio.toFixed(1)}× meno nodi del backtracking naive su questa istanza.`;
+      return `DSATUR explores ${ratio.toFixed(1)}× fewer nodes than naive backtracking on this instance.`;
     }
     return null;
   }
 
   function addRun(primary, secondary) {
-    state.runCounter += 1;
+    state.runCounter++;
+
     state.history.unshift({
       run: state.runCounter,
       puzzle: state.puzzleLabel,
       rows: secondary ? [primary, secondary] : [primary],
       delta: secondary ? computeDelta(primary, secondary) : null,
     });
+
     if (state.history.length > MAX_HISTORY) state.history.pop();
     renderHistory();
   }
 
   function renderHistory() {
     if (state.history.length === 0) {
-      els.stats.innerHTML = '<p class="stats-empty">Genera o compila un puzzle, poi premi «Risolvi»: i risultati restano in elenco finché non premi «Pulisci».</p>';
+      els.stats.innerHTML =
+        '<p class="stats-empty">Generate or fill a puzzle, then press "Solve": results will remain here until you clear them.</p>';
       return;
     }
 
     const body = state.history.map((entry, i) => {
       const group = i % 2 === 0 ? "run-a" : "run-b";
+
       const algoRows = entry.rows.map((r) => `
         <tr class="${group}">
           <td class="num">${entry.run}</td>
           <td>${entry.puzzle}</td>
           <td>${r.algorithm}</td>
-          <td><span class="tag ${r.success ? "success" : "fail"}">${r.success ? "risolto" : "nessuna soluzione"}</span></td>
-          <td class="num">${r.nodes.toLocaleString("it-IT")}</td>
-          <td class="num">${r.time_ms.toLocaleString("it-IT")} ms</td>
-        </tr>`).join("");
+          <td><span class="tag ${r.success ? "success" : "fail"}">${r.success ? "Solved" : "No solution"}</span></td>
+          <td class="num">${r.nodes.toLocaleString("en-US")}</td>
+          <td class="num">${r.time_ms.toLocaleString("en-US")} ms</td>
+        </tr>
+      `).join("");
+
       const deltaRow = entry.delta
         ? `<tr class="${group} delta-row"><td colspan="6">${entry.delta}</td></tr>`
         : "";
+
       return algoRows + deltaRow;
     }).join("");
 
     els.stats.innerHTML = `
       <table class="stat-table">
-        <thead><tr><th>Run</th><th>Puzzle</th><th>Algoritmo</th><th>Esito</th><th>Nodi esplorati</th><th>Tempo</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Run</th>
+            <th>Puzzle</th>
+            <th>Algorithm</th>
+            <th>Status</th>
+            <th>Nodes explored</th>
+            <th>Time</th>
+          </tr>
+        </thead>
         <tbody>${body}</tbody>
-      </table>`;
+      </table>
+    `;
   }
 
-  // Wire
-
   els.btnGenerate.addEventListener("click", generatePuzzle);
-  els.btnClear.addEventListener("click", clearPuzzle);
+  els.btnClearGrid.addEventListener("click", clearPuzzle);
+  els.btnClearResults.addEventListener("click", clearResults);
   els.btnSolve.addEventListener("click", solvePuzzle);
 
   (async function init() {

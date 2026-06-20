@@ -21,20 +21,20 @@ VALID_ALGORITHMS = {"dsatur", "naive", "both"}
 
 
 def validate_grid(grid: Any) -> Optional[str]:
-    """Verifica struttura e contenuto della griglia inviata dal client.
+    """Validate the structure and contents of the grid received from the client.
 
-    Ritorna un messaggio d'errore (str) se la griglia non è valida,
-    altrimenti None. Le celle vuote sono rappresentate da 0.
+    Returns an error message (str) if the grid is invalid,
+    otherwise None. Empty cells are represented by 0.
     """
     if not isinstance(grid, list) or len(grid) != 9:
-        return "La griglia deve avere esattamente 9 righe."
+        return "The grid must contain exactly 9 rows."
     for row in grid:
         if not isinstance(row, list) or len(row) != 9:
-            return "Ogni riga deve avere esattamente 9 celle."
+            return "Each row must contain exactly 9 cells."
         for value in row:
-            # bool è sottoclasse di int in Python: lo escludiamo esplicitamente.
+            # bool is a subclass of int in Python, so we explicitly reject it.
             if isinstance(value, bool) or not isinstance(value, int) or not (0 <= value <= 9):
-                return "Ogni cella deve essere un intero tra 0 e 9 (0 = vuota)."
+                return "Each cell must be an integer between 0 and 9 (0 = empty)."
     return None
 
 
@@ -45,8 +45,8 @@ def handle_http_error(err: HTTPException):
 
 @app.errorhandler(Exception)
 def handle_unexpected_error(err: Exception):
-    logger.exception("Errore non gestito durante la richiesta")
-    return jsonify({"error": "Errore interno del server."}), 500
+    logger.exception("Unhandled error during request")
+    return jsonify({"error": "Internal server error."}), 500
 
 
 @app.route("/")
@@ -56,7 +56,7 @@ def index():
 
 @app.route("/graph")
 def graph():
-    """Restituisce nodi e archi del grafo GraphColoring per il frontend."""
+    """Return the Graph Coloring graph nodes and edges for the frontend."""
     return jsonify(graph_json())
 
 
@@ -71,7 +71,7 @@ def solve():
         return jsonify({"error": error}), 400
 
     if algorithm not in VALID_ALGORITHMS:
-        return jsonify({"error": f"Algoritmo non riconosciuto: {algorithm!r}"}), 400
+        return jsonify({"error": f"Unknown algorithm: {algorithm!r}"}), 400
 
     if algorithm == "dsatur":
         return jsonify({"primary": solve_dsatur(grid)})
@@ -79,7 +79,7 @@ def solve():
     if algorithm == "naive":
         return jsonify({"primary": solve_naive(grid)})
 
-    # algorithm == "both": esegue entrambi per il confronto diretto
+    # algorithm == "both": run both algorithms for direct comparison
     return jsonify({
         "primary": solve_dsatur(grid),
         "secondary": solve_naive(grid),
@@ -92,14 +92,14 @@ def generate_puzzle():
     seed_param = request.args.get("seed")
 
     if difficulty not in DIFFICULTIES and difficulty != "expert":
-        return jsonify({"error": f"Difficoltà non riconosciuta: {difficulty!r}"}), 400
+        return jsonify({"error": f"Unknown difficulty: {difficulty!r}"}), 400
 
     seed: Optional[int] = None
     if seed_param is not None:
         try:
             seed = int(seed_param)
         except ValueError:
-            return jsonify({"error": "Il seed deve essere un intero."}), 400
+            return jsonify({"error": "The seed must be an integer."}), 400
 
     puzzle = get_expert() if difficulty == "expert" else generate(difficulty=difficulty, seed=seed)
     return jsonify({"grid": puzzle, "difficulty": difficulty, "seed": seed})
