@@ -1,0 +1,44 @@
+# File di elaborazione
+test/
+
+# Ambienti virtuali
+venv/
+.venv/
+.env
+.venv
+env.bak
+env/
+bin/
+include/
+lib/
+share/
+venv.bak
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribuzione
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# OS
+.DS_Store
+Thumbs.db
