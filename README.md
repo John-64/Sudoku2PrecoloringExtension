@@ -1,4 +1,4 @@
-# Sudoku 2 Precoloring extension
+# Sudoku 2 PrecoloringExtension
 Sudoku solved as a Pre-coloring Extension instance: a polynomial *family* of reductions (parametrized by block size `n`, selectable from 4×4 to 16×16), two backtracking algorithms side by side, and an interface that shows both representations — grid and graph — as the same object seen from two angles.
 
 <p align="center"> 
