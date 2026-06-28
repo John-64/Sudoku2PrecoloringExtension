@@ -13,16 +13,24 @@
   --danger:       #B3261E;
   --danger-soft:  #FBEAE9;
 
-  /* digit 1-9 → graph color, used consistently in grid + graph */
-  --c1: #B3541E; /* 1 rust    */
-  --c2: #8A6D00; /* 2 ochre   */
-  --c3: #3F7D20; /* 3 green   */
-  --c4: #0F766E; /* 4 teal    */
-  --c5: #1D4ED8; /* 5 blue    */
-  --c6: #6D28D9; /* 6 violet  */
-  --c7: #BE185D; /* 7 magenta */
-  --c8: #475569; /* 8 slate   */
-  --c9: #B91C1C; /* 9 red     */
+  /* digit 1-N → graph color, used consistently in grid + graph.
+     16 colors cover every supported board size (n=2 → 4, n=3 → 9, n=4 → 16). */
+  --c1:  #B3541E; /* 1  rust     */
+  --c2:  #8A6D00; /* 2  ochre    */
+  --c3:  #3F7D20; /* 3  green    */
+  --c4:  #0F766E; /* 4  teal     */
+  --c5:  #1D4ED8; /* 5  blue     */
+  --c6:  #6D28D9; /* 6  violet   */
+  --c7:  #BE185D; /* 7  magenta  */
+  --c8:  #475569; /* 8  slate    */
+  --c9:  #B91C1C; /* 9  red      */
+  --c10: #C2410C; /* 10 orange   */
+  --c11: #4D7C0F; /* 11 olive    */
+  --c12: #0E7490; /* 12 cyan     */
+  --c13: #7C3AED; /* 13 purple   */
+  --c14: #BE123C; /* 14 crimson  */
+  --c15: #166534; /* 15 forest   */
+  --c16: #334155; /* 16 charcoal */
 
   --font-display: 'Source Serif 4', Georgia, serif;
   --font-ui:      'IBM Plex Sans', system-ui, sans-serif;
@@ -123,7 +131,8 @@ h1 em {
 
 .panel-head {
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: center;
   justify-content: space-between;
   margin-bottom: var(--space-3);
 }
@@ -135,7 +144,8 @@ h1 em {
 
 .panel-title {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-weight: 500;
+  font-size: 14px;
   letter-spacing: .06em;
   text-transform: uppercase;
   color: var(--ink-soft);
@@ -147,11 +157,23 @@ h1 em {
   color: var(--ink-faint);
 }
 
-/* Sudoku grid */
+.panel-meta-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.panel-meta-row select {
+  font-size: 12.5px;
+  padding: 4px 8px;
+}
+
+/* Sudoku grid — --cells is set in JS to N (4, 9, or 16) on every resize */
 .sudoku {
+  --cells: 9;
   display: grid;
-  grid-template-columns: repeat(9, 1fr);
-  grid-template-rows: repeat(9, 1fr);
+  grid-template-columns: repeat(var(--cells), 1fr);
+  grid-template-rows: repeat(var(--cells), 1fr);
   aspect-ratio: 1;
   border: 2px solid var(--ink);
   background: var(--line);
@@ -166,7 +188,7 @@ h1 em {
   text-align: center;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: clamp(14px, 2.6vw, 20px);
+  font-size: clamp(8px, min(2.6vw, calc(20px - var(--cells) * 0.6px)), 20px);
   color: var(--ink);
   padding: 0;
   caret-color: var(--accent);
@@ -191,22 +213,29 @@ h1 em {
 .sudoku input.related { background: var(--accent-soft); }
 .sudoku input.selected { background: #fff; box-shadow: inset 0 0 0 2px var(--accent); }
 
-/* block borders, every 3rd line, mirrored by the graph's guide lines */
-.sudoku input[data-c="2"], .sudoku input[data-c="5"] { border-right: 2px solid var(--ink); }
-.sudoku input[data-c="3"], .sudoku input[data-c="6"] { border-left: 1px solid var(--ink); }
-.sudoku input[data-r="2"], .sudoku input[data-r="5"] { border-bottom: 2px solid var(--ink); }
-.sudoku input[data-r="3"], .sudoku input[data-r="6"] { border-top: 1px solid var(--ink); }
+/* block borders — computed in JS per cell (works for any block size n:
+   2x2 blocks in a 4x4 grid, 3x3 in a 9x9, 4x4 in a 16x16), mirrored by
+   the graph's guide lines built the same way in buildGraphDOM(). */
+.sudoku input.block-edge-col { border-right: 2px solid var(--ink); }
+.sudoku input.block-edge-row { border-bottom: 2px solid var(--ink); }
 
-/* digit colors — identical palette used by the graph nodes */
-.sudoku input[data-v="1"], .node[data-v="1"] { color: var(--c1); fill: var(--c1); }
-.sudoku input[data-v="2"], .node[data-v="2"] { color: var(--c2); fill: var(--c2); }
-.sudoku input[data-v="3"], .node[data-v="3"] { color: var(--c3); fill: var(--c3); }
-.sudoku input[data-v="4"], .node[data-v="4"] { color: var(--c4); fill: var(--c4); }
-.sudoku input[data-v="5"], .node[data-v="5"] { color: var(--c5); fill: var(--c5); }
-.sudoku input[data-v="6"], .node[data-v="6"] { color: var(--c6); fill: var(--c6); }
-.sudoku input[data-v="7"], .node[data-v="7"] { color: var(--c7); fill: var(--c7); }
-.sudoku input[data-v="8"], .node[data-v="8"] { color: var(--c8); fill: var(--c8); }
-.sudoku input[data-v="9"], .node[data-v="9"] { color: var(--c9); fill: var(--c9); }
+/* digit colors — identical palette used by the graph nodes, covers 1..16 */
+.sudoku input[data-v="1"],  .node[data-v="1"]  { color: var(--c1);  fill: var(--c1); }
+.sudoku input[data-v="2"],  .node[data-v="2"]  { color: var(--c2);  fill: var(--c2); }
+.sudoku input[data-v="3"],  .node[data-v="3"]  { color: var(--c3);  fill: var(--c3); }
+.sudoku input[data-v="4"],  .node[data-v="4"]  { color: var(--c4);  fill: var(--c4); }
+.sudoku input[data-v="5"],  .node[data-v="5"]  { color: var(--c5);  fill: var(--c5); }
+.sudoku input[data-v="6"],  .node[data-v="6"]  { color: var(--c6);  fill: var(--c6); }
+.sudoku input[data-v="7"],  .node[data-v="7"]  { color: var(--c7);  fill: var(--c7); }
+.sudoku input[data-v="8"],  .node[data-v="8"]  { color: var(--c8);  fill: var(--c8); }
+.sudoku input[data-v="9"],  .node[data-v="9"]  { color: var(--c9);  fill: var(--c9); }
+.sudoku input[data-v="10"], .node[data-v="10"] { color: var(--c10); fill: var(--c10); }
+.sudoku input[data-v="11"], .node[data-v="11"] { color: var(--c11); fill: var(--c11); }
+.sudoku input[data-v="12"], .node[data-v="12"] { color: var(--c12); fill: var(--c12); }
+.sudoku input[data-v="13"], .node[data-v="13"] { color: var(--c13); fill: var(--c13); }
+.sudoku input[data-v="14"], .node[data-v="14"] { color: var(--c14); fill: var(--c14); }
+.sudoku input[data-v="15"], .node[data-v="15"] { color: var(--c15); fill: var(--c15); }
+.sudoku input[data-v="16"], .node[data-v="16"] { color: var(--c16); fill: var(--c16); }
 
 /* live validation: same digit twice in a row/column/block — overrides
    given/selected/related/digit-color, must stay last in the cascade */
@@ -251,6 +280,7 @@ h1 em {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: var(--space-3);
 }
 
@@ -261,6 +291,14 @@ h1 em {
   border-radius: 0;
   padding: 0 0 var(--space-4);
   margin-bottom: var(--space-4);
+}
+
+.control-row.noinline {
+  background: transparent;
+  border: none;
+  border-bottom: 0px solid var(--line);
+  border-radius: 0;
+  padding: 0 0 var(--space-4);
 }
 
 .control-row .label {
@@ -312,7 +350,22 @@ button:disabled {
 
 /* Stats */
 .stats-panel { margin-top: var(--space-5); }
-.stats-panel .panel-head { align-items: center; }
+.stats-panel .panel-head {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+button.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  flex-shrink: 0;
+}
+button.icon-button svg { display: block; }
 
 .stats {
   min-height: 32px;

@@ -1,27 +1,49 @@
 # Sudoku2GraphColoring reduction
-Sudoku solved as a graph-coloring instance: a polynomial reduction, two backtracking algorithms side by side, and an interface that shows both representations — grid and graph — as the same object seen from two angles.
+Sudoku solved as a graph-coloring instance: a polynomial *family* of reductions (parametrized by block size `n`, selectable from 4×4 to 16×16), two backtracking algorithms side by side, and an interface that shows both representations — grid and graph — as the same object seen from two angles.
 
 <p align="center"> 
     <img src="media/icon.png" alt="Sudoku2GraphColoring" width="15%">
 </p>
 
 ## The reduction
-- Each cell `(r, c)` of the 9×9 grid becomes a node → **81 nodes**.
-- Two nodes are connected if their cells share a constraint (same row, same column, or same 3×3 block) → **810 edges**, degree 20 per node.
-- Cells already filled in become a fixed pre-coloring.
-A 9-coloring of the graph that respects the pre-coloring corresponds exactly to a Sudoku solution. Generalized Sudoku is NP-complete (Yato & Seta, 2003); k-coloring is NP-complete for k ≥ 3 — which is why this problem makes a good case study for the course.
+
+This is not a single fixed-size construction: it's a family of polynomial-time transformations, one for every block size `n`, mapping a generalized Sudoku on an `n²×n²` grid to an instance of **graph coloring with a partial pre-assigned coloring** — formally *Pre-coloring Extension* (a.k.a. list coloring), which is the precise decision problem this app targets, not "plain" k-coloring. The app currently supports `n = 2, 3, 4` (boards 4×4, 9×9, 16×16); `n = 3` is the classic Sudoku.
+
+For a given `n`:
+- each cell `(r, c)` becomes a node → **n⁴ nodes**;
+- two nodes are connected if their cells share a constraint (same row, same column, or same `n×n` block) → degree **3n² − 2n − 1** per node, **n⁴(3n² − 2n − 1)/2 edges**. Concretely: n=2 → 16 nodes, degree 7, 56 edges; n=3 → 81 nodes, degree 20, 810 edges; n=4 → 256 nodes, degree 39, 4992 edges.
+- cells already filled in become a fixed pre-coloring.
+- the instance-to-instance map is computable in time polynomial in `n` (building the adjacency lists costs `O(n⁸)` in the worst case) — which is the actual sense in which this is "a polynomial reduction": a statement about an infinite family of instances of growing size, not about one fixed 9×9 board (see *"Why a family, not one instance"* below).
+
+An `n²`-coloring of the graph that respects the pre-coloring corresponds exactly to a solution of the Sudoku instance: every row, column, and block is an `n²`-clique, so a proper coloring drawing from exactly `n²` available colors is forced to use all of them on each clique — a genuine bijection between colorings and Sudoku solutions, not just an "if" direction.
+
+### What this proves, and what it doesn't
+
+The direction implemented here is **Sudoku ≤ₚ Pre-coloring Extension**: every Sudoku instance maps to a coloring instance, so any algorithm that solves coloring also solves Sudoku — which is exactly how this app uses DSATUR. That's the right direction for the practical goal of *solving* Sudoku via a graph-coloring algorithm.
+
+It does **not**, by itself, establish that Sudoku is NP-complete. NP-hardness of generalized Sudoku is Yato & Seta's result (2003), proved with a reduction in the *opposite* direction — from Latin Square Completion (a known NP-complete problem) *into* Sudoku — combined with the easy observation that Sudoku ∈ NP (a filled grid is checkable in polynomial time). "Sudoku is NP-complete" and "k-coloring is NP-complete for k ≥ 3" are both true and worth citing as context, but this construction doesn't connect them in the hardness direction — only in the "solve via" direction. The natural follow-up question — *what would the converse reduction look like?* — would require encoding an arbitrary 3-colorable graph (or Latin Square Completion instance) as a Sudoku grid, a different and harder construction than the one implemented here.
+
+A second, more technical point: this is closer to a **constructive (Levin-style) reduction** than a plain Karp reduction. A Karp reduction only needs to preserve the yes/no answer; this implementation also gives an explicit, efficiently computable map from a coloring back to a Sudoku grid (`coloring_to_grid`) and from a grid to a pre-coloring (`grid_to_precoloring`) — so a solution to one instance reconstructs a solution to the other, not just a verdict.
+
+### Why a family, not one instance
+
+A reduction is, by definition, a statement about an unbounded family of instances of growing size — that's what "polynomial in the input size" means. A single, fixed 9×9 board has constant size, so no statement about asymptotic complexity classes applies to "the one 9×9 Sudoku problem" in isolation. Generalizing the construction to an arbitrary block size `n` (here implemented for `n = 2, 3, 4`, selectable in the interface) makes that asymptotic argument concrete: `reduction.py`, `solver.py`, and `generator.py` are all written against a parameter `n`, not a hardcoded constant — the classic 9×9 case is simply `n = 3` in that family, on the same footing as 4×4 and 16×16. `n` is capped at 4 in this app purely for UI/runtime reasons (see below), not because the construction stops being polynomial beyond that.
+
+One practical side-effect of generalizing to `n = 4`: with 16 colors, simple backtracking — even DSATUR with only direct-neighbor forward checking rather than full arc-consistency — degrades much faster than at `n = 3`. The generator uses lower removal fractions at `n = 4` to keep typical puzzles solvable in a few seconds, and the solver adds a wall-clock guard (`MAX_SECONDS`, on top of the existing node-count guard `MAX_NODES`); when either guard fires mid-search the result is flagged `guard_triggered` and shown as "incomplete" rather than "no solution" — an aborted search is not a proof that no solution exists.
 
 ## Two algorithms, same problem
  
 - **Naive** — row-by-row backtracking, first valid digit, no heuristics.
 - **DSATUR + Forward Checking** (Brélaz, 1979) — at each step, colors the node with maximum saturation (MRV: fewer available colors means a tighter constraint, so it fails earlier), and propagates the constraint to direct neighbors immediately after each assignment.
-Same worst-case complexity (the problem is still NP-hard), but DSATUR explores a search tree orders of magnitude smaller in practice — the app makes this visible by comparing nodes explored by both algorithms on the same instance.
+
+Both work for any block size `n` the app supports. Note this is *not* full arc-consistency (AC-3) — only direct neighbors are checked after each assignment — which is part of why `n = 4` (16 colors) can occasionally hit the search guards described above even though the underlying worst-case complexity argument (the problem is still NP-hard for the generalized, unbounded-size version) doesn't change with `n`. DSATUR still explores a search tree orders of magnitude smaller than naive backtracking in practice — the app makes this visible by comparing nodes explored by both algorithms on the same instance.
 
 ## Interface
  
-- The Sudoku grid and the graph share the same `(r, c)` coordinates: selecting a cell draws its 20 edges in the graph panel, live.
-- Puzzle generation by difficulty (easy / medium / hard) or fixed seed, plus an "expert" preset (AI Escargot).
-- Step-by-step animated solving, with a run history that accumulates (useful for comparing DSATUR vs naive across several instances) — only cleared by "Clear".
+- **Board size selector** (4×4 / 9×9 / 16×16, i.e. `n = 2, 3, 4`): rebuilds both the grid and the graph for the chosen block size and refetches the corresponding instance from `/graph?n=`.
+- The Sudoku grid and the graph share the same `(r, c)` coordinates: selecting a cell draws its neighboring edges in the graph panel, live (their number depends on `n`: 7 at 4×4, 20 at 9×9, 39 at 16×16).
+- Puzzle generation by difficulty (easy / medium / hard) or fixed seed, plus an "expert" preset (AI Escargot) — only available at `n = 3`, since it's a specific famous 9×9 instance.
+- Step-by-step animated solving, with a run history that accumulates (useful for comparing DSATUR vs naive across several instances) — only cleared by "Clear". A run that hit a search guard is shown as "Guard (incomplete)", distinct from a genuine "No solution".
 
 
 ## Instruction to run the project

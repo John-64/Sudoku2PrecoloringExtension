@@ -1,13 +1,16 @@
 (() => {
   "use strict";
 
-  const N = 9;
-  const CELL = 10;
+  const SUPPORTED_N = [2, 3, 4];
+  const CELL = 10; // unita' di viewBox per cella, indipendente da N
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const els = {
     grid: document.getElementById("sudoku-grid"),
     svg: document.getElementById("graph-svg"),
+    boardSize: document.getElementById("board-size"),
+    sudokuMeta: document.getElementById("sudoku-meta"),
+    graphMeta: document.getElementById("graph-meta"),
     difficulty: document.getElementById("difficulty"),
     algorithm: document.getElementById("algorithm"),
     btnGenerate: document.getElementById("btn-generate"),
@@ -22,9 +25,11 @@
   const MAX_HISTORY = 25;
 
   const state = {
-    grid: emptyGrid(),
-    baseGrid: emptyGrid(),
-    given: emptyGrid(),
+    n: 3,
+    N: 9,
+    grid: null,
+    baseGrid: null,
+    given: null,
     adjacency: new Map(),
     selected: null,
     busy: false,
@@ -37,7 +42,7 @@
     puzzleLabel: "—",
   };
 
-  function emptyGrid() {
+  function emptyGrid(N) {
     return Array.from({ length: N }, () => Array(N).fill(0));
   }
 
@@ -45,9 +50,18 @@
     return g.map((row) => row.slice());
   }
 
-  function idx(r, c) { return r * N + c; }
+  function idx(r, c) { return r * state.N + c; }
+
+  function maxDigitLength(N) { return String(N).length; }
+
+  // --- DOM construction (rebuilt on every board-size change) ---
 
   function buildSudokuDOM() {
+    const N = state.N, n = state.n;
+    els.grid.innerHTML = "";
+    els.grid.style.setProperty("--cells", N);
+    state.inputEls = [];
+    const maxLen = maxDigitLength(N);
     const frag = document.createDocumentFragment();
     for (let r = 0; r < N; r++) {
       state.inputEls.push([]);
@@ -55,11 +69,14 @@
         const input = document.createElement("input");
         input.type = "text";
         input.inputMode = "numeric";
-        input.maxLength = 1;
+        input.maxLength = maxLen;
         input.autocomplete = "off";
         input.dataset.r = r;
         input.dataset.c = c;
         input.setAttribute("aria-label", `Row ${r + 1}, column ${c + 1}`);
+
+        if ((c + 1) % n === 0 && c !== N - 1) input.classList.add("block-edge-col");
+        if ((r + 1) % n === 0 && r !== N - 1) input.classList.add("block-edge-row");
 
         input.addEventListener("focus", () => selectCell(r, c));
         input.addEventListener("click", () => selectCell(r, c));
@@ -74,13 +91,18 @@
   }
 
   function buildGraphDOM() {
+    const N = state.N, n = state.n;
     const svg = els.svg;
+    const size = N * CELL;
+    svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
+    svg.innerHTML = "";
 
     const guides = document.createElementNS(svg.namespaceURI, "g");
-    [30, 60].forEach((pos) => {
-      guides.appendChild(line(pos, 0, pos, 90, "guide strong"));
-      guides.appendChild(line(0, pos, 90, pos, "guide strong"));
-    });
+    for (let k = 1; k < n; k++) {
+      const pos = k * n * CELL;
+      guides.appendChild(line(pos, 0, pos, size, "guide strong"));
+      guides.appendChild(line(0, pos, size, pos, "guide strong"));
+    }
     svg.appendChild(guides);
 
     state.edgesGroup = document.createElementNS(svg.namespaceURI, "g");
@@ -92,6 +114,8 @@
     svg.appendChild(state.conflictEdgesGroup);
 
     const nodesGroup = document.createElementNS(svg.namespaceURI, "g");
+    state.nodeEls = [];
+    const radius = N > 9 ? 2.0 : 3.1;
     for (let r = 0; r < N; r++) {
       state.nodeEls.push([]);
       for (let c = 0; c < N; c++) {
@@ -99,7 +123,7 @@
         const circle = document.createElementNS(svg.namespaceURI, "circle");
         circle.setAttribute("cx", x);
         circle.setAttribute("cy", y);
-        circle.setAttribute("r", 3.1);
+        circle.setAttribute("r", radius);
         circle.classList.add("node", "empty");
         circle.dataset.r = r;
         circle.dataset.c = c;
@@ -124,17 +148,26 @@
 
   async function loadGraph() {
     try {
-      const res = await fetch("/graph");
+      const res = await fetch(`/graph?n=${state.n}`);
       if (!res.ok) throw new Error("graph fetch failed");
       const data = await res.json();
-      state.adjacency = new Map(data.nodes.map((n) => [n.id, new Set()]));
+      state.adjacency = new Map(data.nodes.map((nd) => [nd.id, new Set()]));
       data.edges.forEach(({ u, v }) => {
         state.adjacency.get(u).add(v);
         state.adjacency.get(v).add(u);
       });
+      updateMeta(data);
     } catch (err) {
       showError("Unable to load the graph structure. Restart the server and refresh the page.");
     }
+  }
+
+  function updateMeta(graphData) {
+    const N = state.N;
+    const vertexCount = graphData.nodes.length;
+    const edgeCount = graphData.edges.length;
+    els.sudokuMeta.textContent = `${N} × ${N} cells`;
+    els.graphMeta.textContent = `${vertexCount} vertices · ${edgeCount} edges`;
   }
 
   function renderCell(r, c) {
@@ -156,10 +189,12 @@
   }
 
   function renderAll() {
+    const N = state.N;
     for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) renderCell(r, c);
   }
 
   function findConflicts(grid) {
+    const N = state.N;
     const cells = new Set();
     const edges = [];
     for (let r = 0; r < N; r++) {
@@ -183,6 +218,7 @@
   }
 
   function renderConflicts() {
+    const N = state.N;
     const { cells, edges } = findConflicts(state.grid);
 
     for (let r = 0; r < N; r++) {
@@ -223,6 +259,7 @@
     const [x1, y1] = coordsFor(r, c);
 
     neighbours.forEach((nIdx) => {
+      const N = state.N;
       const nr = Math.floor(nIdx / N), nc = nIdx % N;
       state.inputEls[nr][nc].classList.add("related");
       state.nodeEls[nr][nc].classList.add("related");
@@ -236,7 +273,7 @@
     document.querySelectorAll(".selected, .related").forEach((el) => {
       el.classList.remove("selected", "related");
     });
-    state.edgesGroup.innerHTML = "";
+    if (state.edgesGroup) state.edgesGroup.innerHTML = "";
     state.selected = null;
   }
 
@@ -247,8 +284,17 @@
   function onCellInput(e) {
     const input = e.target;
     const r = Number(input.dataset.r), c = Number(input.dataset.c);
-    const digits = input.value.replace(/[^1-9]/g, "").slice(-1);
-    const value = digits === "" ? 0 : Number(digits);
+    const N = state.N;
+    const maxLen = maxDigitLength(N);
+
+    let digits = input.value.replace(/[^0-9]/g, "").slice(-maxLen);
+    let value = digits === "" ? 0 : Number(digits);
+    if (value > N) {
+      digits = digits.slice(-1);
+      value = digits === "" ? 0 : Number(digits);
+      if (value > N) { digits = ""; value = 0; }
+    }
+
     state.grid[r][c] = value;
     state.baseGrid[r][c] = value;
     state.puzzleLabel = "custom";
@@ -267,6 +313,7 @@
   }
 
   function onCellKeydown(e) {
+    const N = state.N;
     const r = Number(e.target.dataset.r), c = Number(e.target.dataset.c);
     const moves = {
       ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1],
@@ -282,7 +329,7 @@
 
   function setBusy(busy) {
     state.busy = busy;
-    [els.btnGenerate, els.btnClearGrid, els.btnClearResults, els.btnSolve].forEach((b) => (b.disabled = busy));
+    [els.btnGenerate, els.btnClearGrid, els.btnClearResults, els.btnSolve, els.boardSize].forEach((b) => (b.disabled = busy));
   }
 
   function showError(msg) {
@@ -294,12 +341,23 @@
     els.banner.classList.remove("visible");
   }
 
+  function updateExpertAvailability() {
+    const expertOption = els.difficulty.querySelector('option[value="expert"]');
+    if (!expertOption) return;
+    const available = state.n === 3;
+    expertOption.disabled = !available;
+    expertOption.textContent = available ? "Expert (AI Escargot)" : "Expert (only for 9 × 9)";
+    if (!available && els.difficulty.value === "expert") {
+      els.difficulty.value = "medium";
+    }
+  }
+
   async function generatePuzzle() {
     if (state.busy) return;
     hideError();
     setBusy(true);
     try {
-      const params = new URLSearchParams({ difficulty: els.difficulty.value });
+      const params = new URLSearchParams({ difficulty: els.difficulty.value, n: String(state.n) });
 
       const res = await fetch(`/generate?${params.toString()}`);
       const data = await res.json();
@@ -323,9 +381,9 @@
     if (state.busy) return;
     hideError();
     clearSelection();
-    state.grid = emptyGrid();
-    state.baseGrid = emptyGrid();
-    state.given = emptyGrid();
+    state.grid = emptyGrid(state.N);
+    state.baseGrid = emptyGrid(state.N);
+    state.given = emptyGrid(state.N);
     state.puzzleLabel = "—";
     refreshGrid();
   }
@@ -356,7 +414,7 @@
       const res = await fetch("/solve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ grid: state.grid, algorithm }),
+        body: JSON.stringify({ grid: state.grid, algorithm, n: state.n }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Solving failed");
@@ -411,11 +469,17 @@
     return null;
   }
 
+  function outcomeLabel(row) {
+    if (row.success) return { cls: "success", text: "Solved" };
+    if (row.guard_triggered) return { cls: "fail", text: "Guard (incomplete)" };
+    return { cls: "fail", text: "No solution" };
+  }
+
   function addRun(primary, secondary) {
     state.runCounter += 1;
     state.history.unshift({
       run: state.runCounter,
-      puzzle: state.puzzleLabel,
+      puzzle: `${state.N}×${state.N} · ${state.puzzleLabel}`,
       rows: secondary ? [primary, secondary] : [primary],
       delta: secondary ? computeDelta(primary, secondary) : null,
     });
@@ -425,21 +489,24 @@
 
   function renderHistory() {
     if (state.history.length === 0) {
-      els.stats.innerHTML = '<p class="stats-empty">Generate or load a Sudoku puzzle, then click <strong>Solve</strong>. The results will remain visible until you click <strong>Clear Results</strong>.</p>';
+      els.stats.innerHTML = '<p class="stats-empty">Generate or load a Sudoku puzzle, then click <strong>Solve</strong>. The results will remain visible until you click the clear icon above.</p>';
       return;
     }
 
     const body = state.history.map((entry, i) => {
       const group = i % 2 === 0 ? "run-a" : "run-b";
-      const algoRows = entry.rows.map((r) => `
+      const algoRows = entry.rows.map((r) => {
+        const outcome = outcomeLabel(r);
+        return `
         <tr class="${group}">
           <td class="num">${entry.run}</td>
           <td>${entry.puzzle}</td>
           <td>${r.algorithm}</td>
-          <td><span class="tag ${r.success ? "success" : "fail"}">${r.success ? "Solved" : "No solution"}</span></td>
+          <td><span class="tag ${outcome.cls}">${outcome.text}</span></td>
           <td class="num">${r.nodes.toLocaleString("en-US")}</td>
           <td class="num">${r.time_ms.toLocaleString("en-US")} ms</td>
-        </tr>`).join("");
+        </tr>`;
+      }).join("");
       const deltaRow = entry.delta
         ? `<tr class="${group} delta-row"><td colspan="6">${entry.delta}</td></tr>`
         : "";
@@ -453,15 +520,44 @@
       </table>`;
   }
 
+  async function applyBoardSize(n, { resetHistoryToo = true } = {}) {
+    state.n = n;
+    state.N = n * n;
+    clearSelection();
+    state.grid = emptyGrid(state.N);
+    state.baseGrid = emptyGrid(state.N);
+    state.given = emptyGrid(state.N);
+    state.puzzleLabel = "—";
+
+    buildSudokuDOM();
+    buildGraphDOM();
+    updateExpertAvailability();
+    await loadGraph();
+    refreshGrid();
+    if (resetHistoryToo) resetHistory();
+  }
+
+  async function onBoardSizeChange() {
+    if (state.busy) return;
+    hideError();
+    setBusy(true);
+    try {
+      await applyBoardSize(Number(els.boardSize.value));
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   els.btnGenerate.addEventListener("click", generatePuzzle);
   els.btnClearGrid.addEventListener("click", clearPuzzle);
   els.btnClearResults.addEventListener("click", clearResults);
   els.btnSolve.addEventListener("click", solvePuzzle);
+  els.boardSize.addEventListener("change", onBoardSizeChange);
 
   (async function init() {
-    buildSudokuDOM();
-    buildGraphDOM();
-    await loadGraph();
-    refreshGrid();
+    const initialN = Number(els.boardSize.value) || 3;
+    await applyBoardSize(initialN, { resetHistoryToo: false });
   })();
 })();

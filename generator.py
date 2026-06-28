@@ -1,57 +1,86 @@
 import random
 from typing import List, Optional
 
-N = 9
+from reduction import DEFAULT_BLOCK_SIZE, SUPPORTED_BLOCK_SIZES, grid_size
 
-BASE = [
-    [5, 3, 4, 6, 7, 8, 9, 1, 2],
-    [6, 7, 2, 1, 9, 5, 3, 4, 8],
-    [1, 9, 8, 3, 4, 2, 5, 6, 7],
-    [8, 5, 9, 7, 6, 1, 4, 2, 3],
-    [4, 2, 6, 8, 5, 3, 7, 9, 1],
-    [7, 1, 3, 9, 2, 4, 8, 5, 6],
-    [9, 6, 1, 5, 3, 7, 2, 8, 4],
-    [2, 8, 7, 4, 1, 9, 6, 3, 5],
-    [3, 4, 5, 2, 8, 6, 1, 7, 9],
-]
-
-REMOVE_COUNTS = {
-    "easy":   34,
-    "medium": 46,
-    "hard":   54,
+# Frazione di celle rimosse per difficolta', calibrata per blocco n.
+# n=3 e' il caso classico (34/81, 46/81, 54/81). Per n=4 (16 colori) un
+# semplice backtracking (anche con DSATUR + forward checking, senza
+# arc-consistency completa) degrada molto piu' rapidamente all'aumentare
+# delle celle vuote che nel caso 9x9: a parita' di frazione rimossa la
+# ricerca puo' esplodere combinatoriamente. Per restare in tempi di
+# risposta ragionevoli per una demo web, n=4 usa frazioni piu' basse
+# (piu' indizi) a parita' di etichetta di difficolta'. n=2 e' comunque
+# banale (16 celle) quindi puo' restare aggressivo.
+REMOVE_FRACTIONS_BY_N = {
+    2: {"easy": 0.50, "medium": 0.625, "hard": 0.75},
+    3: {"easy": 34 / 81, "medium": 46 / 81, "hard": 54 / 81},
+    4: {"easy": 0.30, "medium": 0.38, "hard": 0.46},
 }
 
-# Difficoltà gestite da generate(); "expert" è un caso a parte (get_expert()).
-DIFFICULTIES = tuple(REMOVE_COUNTS.keys())
+# Difficolta' gestite da generate(); "expert" e' un caso a parte (get_expert()),
+# disponibile solo per il Sudoku classico (n=3).
+DIFFICULTIES = tuple(REMOVE_FRACTIONS_BY_N[DEFAULT_BLOCK_SIZE].keys())
 
 
 def _copy(grid: List[List[int]]) -> List[List[int]]:
     return [row[:] for row in grid]
 
 
-def generate(difficulty: str = "medium", seed: Optional[int] = None) -> List[List[int]]:
+def _check_supported(n: int) -> None:
+    if n not in SUPPORTED_BLOCK_SIZES:
+        raise ValueError(
+            f"Unsupported block size n={n!r}; supported: {SUPPORTED_BLOCK_SIZES}"
+        )
+
+
+def base_grid(n: int) -> List[List[int]]:
+    """
+    Griglia soluzione 'canonica' per blocco n x n (lato N = n^2), costruita
+    con la formula generale:
+
+        pattern(r, c) = (n * (r % n) + r // n + c) mod n^2
+
+    Per qualunque n questa formula produce un Sudoku valido (righe, colonne
+    e blocchi n x n tutti permutazioni di 1..n^2): e' la stessa costruzione
+    a meno di rietichettatura per n=2, n=3 (il Sudoku classico) e n=4 -
+    il punto e' che la *stessa funzione*, parametrizzata in n, genera
+    un'istanza valida per ogni dimensione, rispecchiando la riduzione che
+    e' anch'essa definita per famiglia e non solo per il caso 9x9.
+    """
+    _check_supported(n)
+    N = grid_size(n)
+    return [
+        [((n * (r % n) + r // n + c) % N) + 1 for c in range(N)]
+        for r in range(N)
+    ]
+
+
+def generate(n: int = DEFAULT_BLOCK_SIZE, difficulty: str = "medium", seed: Optional[int] = None) -> List[List[int]]:
+    _check_supported(n)
+    N = grid_size(n)
     rng = random.Random(seed)
 
-    grid = _copy(BASE)
+    grid = base_grid(n)
 
-    # --- Permuta le cifre 1-9 ---
+    # --- Permuta le cifre 1..N ---
     digit_perm = list(range(1, N + 1))
     rng.shuffle(digit_perm)
     mapping = {old: new for old, new in zip(range(1, N + 1), digit_perm)}
     grid = [[mapping[v] for v in row] for row in grid]
 
-    # --- Shuffle righe dentro ogni banda orizzontale ---
-    for band in range(3):
-        rows = list(range(band * 3, band * 3 + 3))
+    # --- Shuffle righe dentro ogni banda orizzontale (n bande di n righe) ---
+    for band in range(n):
+        rows = list(range(band * n, band * n + n))
         shuffled = rows[:]
         rng.shuffle(shuffled)
         band_data = [grid[r][:] for r in shuffled]
-        for i, r in enumerate(range(band * 3, band * 3 + 3)):
+        for i, r in enumerate(range(band * n, band * n + n)):
             grid[r] = band_data[i]
 
     # --- Shuffle colonne dentro ogni banda verticale ---
-    for band in range(3):
-        cols = list(range(band * 3, band * 3 + 3))
+    for band in range(n):
+        cols = list(range(band * n, band * n + n))
         shuffled = cols[:]
         rng.shuffle(shuffled)
         col_map = {orig: shuf for orig, shuf in zip(cols, shuffled)}
@@ -62,20 +91,21 @@ def generate(difficulty: str = "medium", seed: Optional[int] = None) -> List[Lis
         grid = new_grid
 
     # --- Shuffle bande orizzontali ---
-    bands = [0, 1, 2]
+    bands = list(range(n))
     rng.shuffle(bands)
     new_grid = []
     for b in bands:
-        for r in range(b * 3, b * 3 + 3):
+        for r in range(b * n, b * n + n):
             new_grid.append(grid[r][:])
     grid = new_grid
 
-    # --- Rimuovi celle con simmetria di punto (180°) ---
+    # --- Rimuovi celle con simmetria di punto (180 gradi) ---
     puzzle = _copy(grid)
-    n_remove = REMOVE_COUNTS.get(difficulty, REMOVE_COUNTS["medium"])
-
-    total_cells = N * N          # 81
-    center = total_cells // 2    # 40 -> cella (4,4)
+    fractions = REMOVE_FRACTIONS_BY_N[n]
+    fraction = fractions.get(difficulty, fractions["medium"])
+    total_cells = N * N
+    n_remove = round(total_cells * fraction)
+    center = total_cells // 2
 
     half_indices = list(range(center))
     rng.shuffle(half_indices)
@@ -90,8 +120,9 @@ def generate(difficulty: str = "medium", seed: Optional[int] = None) -> List[Lis
         puzzle[r2][c2] = 0
         removed += 2
 
-    # Se il target è dispari, tocca anche la cella centrale (caso limite,
-    # non usato dai preset attuali ma corretto per qualunque n_remove).
+    # Se il target e' dispari (o la griglia ha un numero pari di celle ma il
+    # target richiesto e' dispari), tocca anche la cella centrale: rompe la
+    # simmetria di un singolo punto ma resta corretto per qualunque n.
     if removed < n_remove:
         cr, cc = divmod(center, N)
         puzzle[cr][cc] = 0
@@ -100,9 +131,10 @@ def generate(difficulty: str = "medium", seed: Optional[int] = None) -> List[Lis
     return puzzle
 
 
-# Puzzle pre-costruiti extra-difficili per test
+# Puzzle pre-costruito extra-difficile per test, solo per il Sudoku
+# classico 9x9 (n=3): non esiste un analogo "famoso" per n=2/4.
 EXPERT_PUZZLES = [
-    # "AI Escargot" — uno dei Sudoku più difficili al mondo
+    # "AI Escargot" - uno dei Sudoku piu' difficili al mondo
     [
         [1, 0, 0, 0, 0, 7, 0, 9, 0],
         [0, 3, 0, 0, 2, 0, 0, 0, 8],
@@ -115,6 +147,8 @@ EXPERT_PUZZLES = [
         [0, 0, 7, 0, 0, 0, 3, 0, 0],
     ]
 ]
+
+EXPERT_BLOCK_SIZE = 3
 
 
 def get_expert() -> List[List[int]]:
