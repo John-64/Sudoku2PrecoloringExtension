@@ -27,9 +27,8 @@ app.config["JSON_SORT_KEYS"] = False
 
 VALID_ALGORITHMS = {"dsatur", "naive", "both"}
 
-
+# Valida il parametro n (dimensione blocco). Ritorna (n, errore).
 def parse_block_size(raw: Any) -> "tuple[Optional[int], Optional[str]]":
-    """Valida il parametro n (dimensione blocco). Ritorna (n, errore)."""
     if raw is None:
         return DEFAULT_BLOCK_SIZE, None
     try:
