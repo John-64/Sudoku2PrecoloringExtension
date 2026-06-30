@@ -33,7 +33,9 @@ One practical side-effect of generalizing to `n = 4`: with 16 colors, simple bac
 
 ## Two algorithms, same problem
  
-- **Naive** — row-by-row backtracking, first valid digit, no heuristics.
+Both algorithms operate on the *same* reduced graph (same adjacency, same fixed pre-coloring) — they differ only in node-ordering and look-ahead, so the comparison below is an apples-to-apples ablation of what DSATUR's heuristic actually buys you, not a comparison between two different representations of the puzzle:
+
+- **Naive** — picks the first uncolored node in a fixed, arbitrary order (by node id), tries colors low to high, no look-ahead.
 - **DSATUR + Forward Checking** (Brélaz, 1979) — at each step, colors the node with maximum saturation (MRV: fewer available colors means a tighter constraint, so it fails earlier), and propagates the constraint to direct neighbors immediately after each assignment.
 
 Both algorithms here are full backtracking searches, with undo on failure — not the classic textbook DSATUR, which is a single-pass greedy heuristic with no backtracking and can fail to find a solution even when one exists. This implementation uses DSATUR's saturation criterion only to *order* which node to branch on next, inside a complete, sound backtracking search — hence the name "DSATUR + Forward Checking" rather than plain "DSATUR".
