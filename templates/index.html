@@ -16,8 +16,10 @@
                Each cell is a vertex, and each row, column, or block constraint is an edge.
                This is a <em>family</em> of reductions parametrized by the block size <code>n</code>
                (grid <code>n²×n²</code>) — not a single fixed-size instance. Select a cell to
-               highlight its neighboring vertices in the graph, then compare DSATUR and naive
-               backtracking on the same search tree.
+               highlight every vertex it shares an edge with — degree <code>3n² − 2n − 1</code>
+               (20, for the classic 9×9 board) — the edges themselves aren't drawn, just their
+               endpoints, to keep the graph readable; then compare DSATUR and naive backtracking
+               on the same search tree.
             </p>
          </header>
          <main>

@@ -105,17 +105,10 @@
     }
     svg.appendChild(guides);
 
-    state.edgesGroup = document.createElementNS(svg.namespaceURI, "g");
-    state.edgesGroup.setAttribute("id", "edges");
-    svg.appendChild(state.edgesGroup);
-
-    state.conflictEdgesGroup = document.createElementNS(svg.namespaceURI, "g");
-    state.conflictEdgesGroup.setAttribute("id", "conflict-edges");
-    svg.appendChild(state.conflictEdgesGroup);
-
     const nodesGroup = document.createElementNS(svg.namespaceURI, "g");
     state.nodeEls = [];
     const radius = N > 9 ? 2.0 : 3.1;
+    state.baseRadius = radius; // serve per ripristinare la dimensione dopo l'evidenziazione in selectCell()
     for (let r = 0; r < N; r++) {
       state.nodeEls.push([]);
       for (let c = 0; c < N; c++) {
@@ -132,6 +125,18 @@
       }
     }
     svg.appendChild(nodesGroup);
+
+    // Gli archi vengono dopo i nodi nel DOM apposta: in SVG chi viene dopo si
+    // disegna sopra. Cosi', quando un nodo e' selezionato e i nodi non
+    // coinvolti si attenuano (vedi ".has-selection" in style.css), gli archi
+    // restano sempre ben visibili al centro, non "sotto" i pallini.
+    state.edgesGroup = document.createElementNS(svg.namespaceURI, "g");
+    state.edgesGroup.setAttribute("id", "edges");
+    svg.appendChild(state.edgesGroup);
+
+    state.conflictEdgesGroup = document.createElementNS(svg.namespaceURI, "g");
+    state.conflictEdgesGroup.setAttribute("id", "conflict-edges");
+    svg.appendChild(state.conflictEdgesGroup);
   }
 
   function coordsFor(r, c) {
@@ -143,6 +148,25 @@
     el.setAttribute("x1", x1); el.setAttribute("y1", y1);
     el.setAttribute("x2", x2); el.setAttribute("y2", y2);
     el.setAttribute("class", cls);
+    return el;
+  }
+
+  // Un arco invece di un segmento dritto: stessa identica curvatura per
+  // qualunque vicino (stessa riga, stessa colonna o stesso blocco). Senza
+  // questo, un arco lungo riga/colonna sarebbe perfettamente orizzontale o
+  // verticale e si confonderebbe visivamente con la griglia stessa, mentre
+  // solo gli archi diagonali (blocco) si vedrebbero come "veri" archi --
+  // dando l'impressione sbagliata che solo il blocco abbia un vincolo.
+  function curvedLine(x1, y1, x2, y2, cls) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy) || 1;
+    const bow = Math.min(len * 0.15, 3); // leggero, uguale in proporzione per ogni arco
+    const mx = (x1 + x2) / 2 + (-dy / len) * bow;
+    const my = (y1 + y2) / 2 + (dx / len) * bow;
+    const el = document.createElementNS(els.svg.namespaceURI, "path");
+    el.setAttribute("d", `M${x1},${y1} Q${mx},${my} ${x2},${y2}`);
+    el.setAttribute("class", cls);
+    el.setAttribute("fill", "none");
     return el;
   }
 
@@ -233,7 +257,7 @@
     edges.forEach(([u, v]) => {
       const [x1, y1] = coordsFor(Math.floor(u / N), u % N);
       const [x2, y2] = coordsFor(Math.floor(v / N), v % N);
-      state.conflictEdgesGroup.appendChild(line(x1, y1, x2, y2, "edge conflict-edge"));
+      state.conflictEdgesGroup.appendChild(curvedLine(x1, y1, x2, y2, "edge conflict-edge"));
     });
 
     return cells.size > 0;
@@ -244,6 +268,9 @@
     renderConflicts();
   }
 
+  // Niente archi: solo evidenziazione del nodo, stesso colore per tutti i
+  // vicini (riga, colonna, blocco), selezionato con bordo piu' spesso e
+  // vicini con bordo piu' sottile.
   function selectCell(r, c) {
     if (state.selected && state.selected.r === r && state.selected.c === c) return;
     clearSelection();
@@ -251,20 +278,16 @@
 
     const u = idx(r, c);
     const neighbours = state.adjacency.get(u) || new Set();
+    const N = state.N;
 
     state.inputEls[r][c].classList.add("selected");
     state.nodeEls[r][c].classList.add("selected");
-
-    state.edgesGroup.innerHTML = "";
-    const [x1, y1] = coordsFor(r, c);
+    els.svg.classList.add("has-selection"); // attenua i nodi non coinvolti (vedi CSS)
 
     neighbours.forEach((nIdx) => {
-      const N = state.N;
       const nr = Math.floor(nIdx / N), nc = nIdx % N;
       state.inputEls[nr][nc].classList.add("related");
       state.nodeEls[nr][nc].classList.add("related");
-      const [x2, y2] = coordsFor(nr, nc);
-      state.edgesGroup.appendChild(line(x1, y1, x2, y2, "edge lit"));
     });
   }
 
@@ -274,6 +297,7 @@
       el.classList.remove("selected", "related");
     });
     if (state.edgesGroup) state.edgesGroup.innerHTML = "";
+    els.svg.classList.remove("has-selection");
     state.selected = null;
   }
 

@@ -168,7 +168,7 @@ h1 em {
   padding: 4px 8px;
 }
 
-/* Sudoku grid — --cells is set in JS to N (4, 9, or 16) on every resize */
+/* Sudoku grid */
 .sudoku {
   --cells: 9;
   display: grid;
@@ -212,10 +212,6 @@ h1 em {
 
 .sudoku input.related { background: var(--accent-soft); }
 .sudoku input.selected { background: #fff; box-shadow: inset 0 0 0 2px var(--accent); }
-
-/* block borders — computed in JS per cell (works for any block size n:
-   2x2 blocks in a 4x4 grid, 3x3 in a 9x9, 4x4 in a 16x16), mirrored by
-   the graph's guide lines built the same way in buildGraphDOM(). */
 .sudoku input.block-edge-col { border-right: 2px solid var(--ink); }
 .sudoku input.block-edge-row { border-bottom: 2px solid var(--ink); }
 
@@ -237,8 +233,6 @@ h1 em {
 .sudoku input[data-v="15"], .node[data-v="15"] { color: var(--c15); fill: var(--c15); }
 .sudoku input[data-v="16"], .node[data-v="16"] { color: var(--c16); fill: var(--c16); }
 
-/* live validation: same digit twice in a row/column/block — overrides
-   given/selected/related/digit-color, must stay last in the cascade */
 .sudoku input.conflict {
   color: var(--danger);
   background: var(--danger-soft);
@@ -265,11 +259,14 @@ h1 em {
   fill: var(--ink-faint);
   stroke: var(--surface);
   stroke-width: 1.4;
-  transition: r .12s ease;
+  transition: r .12s ease, opacity .15s ease;
 }
 .node.empty { fill: var(--line-strong); }
-.node.selected { stroke: var(--accent); stroke-width: 2; }
-.node.related { stroke: var(--accent); stroke-width: 1.4; }
+.node.selected { stroke: var(--accent); stroke-width: 1; }
+.node.related { stroke: var(--accent); stroke-width: 0.5; }
+
+/* Mentre un nodo e' selezionato, tutto cio' che non e' selezionato o vicino si attenua */
+#graph-svg.has-selection .node:not(.selected):not(.related) { opacity: .2; }
 
 /* Controls */
 .control-row {
@@ -348,8 +345,6 @@ button:disabled {
   transform: none;
 }
 
-/* Spinner inline nel pulsante Solve: invisibile finche' il bottone non ha
-   la classe is-loading (impostata via JS mentre la richiesta /solve e' in volo) */
 .btn-spinner {
   display: none;
   width: 12px;
