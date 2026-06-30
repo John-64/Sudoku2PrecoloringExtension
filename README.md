@@ -90,6 +90,13 @@ Both work for any block size `n` the app supports. Note this is *not* full arc-c
     <img src="media/solved.png" alt="Reduction completed" width="80%">
 </div>
 
+<div align="center">
+    <div>
+        <h5>Example with the 4x4 grid</h5>
+    </div>
+    <img src="media/example4x4.png" alt="Example with the 4x4 grid" width="80%">
+</div>
+
 ## References
 - [New methods to color the vertices of a graph](https://dl.acm.org/doi/10.1145/359094.359101) - Daniel Brélaz
 - [Complexity and Completeness of Finding Another Solution and Its Application to Puzzles](https://academic.timwylie.com/17CSCI4341/sudoku.pdf) - Takayuki Yato, Takahiro Seta

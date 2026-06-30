@@ -243,7 +243,7 @@
 
   function renderConflicts() {
     const N = state.N;
-    const { cells, edges } = findConflicts(state.grid);
+    const { cells } = findConflicts(state.grid);
 
     for (let r = 0; r < N; r++) {
       for (let c = 0; c < N; c++) {
@@ -253,12 +253,7 @@
       }
     }
 
-    state.conflictEdgesGroup.innerHTML = "";
-    edges.forEach(([u, v]) => {
-      const [x1, y1] = coordsFor(Math.floor(u / N), u % N);
-      const [x2, y2] = coordsFor(Math.floor(v / N), v % N);
-      state.conflictEdgesGroup.appendChild(curvedLine(x1, y1, x2, y2, "edge conflict-edge"));
-    });
+    if (state.conflictEdgesGroup) state.conflictEdgesGroup.innerHTML = "";
 
     return cells.size > 0;
   }
